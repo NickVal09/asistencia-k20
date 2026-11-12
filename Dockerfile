@@ -32,3 +32,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 # El contenedor arranca solo: espera MySQL, migra y sirve la web + API.
 ENTRYPOINT ["/entrypoint.sh"]
+CMD []

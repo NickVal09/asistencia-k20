@@ -13,11 +13,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from app.core.config import settings
 from app.models import Base
 
-# Validación de seguridad obligatoria:
-if settings.MYSQL_DB != "asistencia_k20":
+# Validación de seguridad: en desarrollo solo se permiten migraciones sobre
+# 'asistencia_k20'. En producción se permite cualquier nombre para facilitar
+# despliegues en Dokploy/Proxmox con bases de datos gestionadas.
+if settings.ENVIRONMENT != "production" and settings.MYSQL_DB != "asistencia_k20":
     raise RuntimeError(
         f"ALERTA DE SEGURIDAD: La base de datos configurada es '{settings.MYSQL_DB}', "
-        f"pero las migraciones SOLO pueden ejecutarse sobre 'asistencia_k20'."
+        f"pero las migraciones SOLO pueden ejecutarse sobre 'asistencia_k20' en desarrollo."
     )
 
 config = context.config

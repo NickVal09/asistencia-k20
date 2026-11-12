@@ -20,6 +20,11 @@ FRONTEND_DIST = Path(
 ).resolve()
 FRONTEND_INDEX = FRONTEND_DIST / "index.html"
 
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("asistencia-k20")
+logger.info("FRONTEND_DIST = %s (existe=%s)", FRONTEND_DIST, FRONTEND_INDEX.is_file())
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
