@@ -93,7 +93,25 @@ def root():
 
 @app.get("/health", tags=["General"])
 def health_check():
-    return {"status": "ok", "environment": settings.ENVIRONMENT}
+    """Diagnostico rapido: util para verificar el despliegue en Dokploy.
+
+    - status: el proceso esta vivo.
+    - frontend: la web compilada (frontend/dist/index.html) esta presente.
+    - database: la base de datos responde (comprobacion breve, con timeout).
+    """
+    db_ok = True
+    try:
+        with engine.connect() as conexion:
+            conexion.exec_driver_sql("SELECT 1")
+    except Exception:  # noqa: BLE001
+        db_ok = False
+
+    return {
+        "status": "ok",
+        "environment": settings.ENVIRONMENT,
+        "frontend": FRONTEND_INDEX.is_file(),
+        "database": db_ok,
+    }
 
 
 # Rutas internas de la API que nunca deben devolver la web (SPA).

@@ -59,12 +59,31 @@ if (Test-Servicio "$baseUrl/health") {
     }
 
     $tarea = Get-ScheduledTask -TaskName "AsistenciaK20" -ErrorAction SilentlyContinue
-    if ($tarea) {
-        Write-Host "  Iniciando mediante el arranque automatico (tarea AsistenciaK20)..." -ForegroundColor DarkGray
-        Start-ScheduledTask -TaskName "AsistenciaK20"
-    } else {
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$rootDir\backend'; Write-Host 'Asistencia K20 - servicio unico (web + API)' -ForegroundColor Cyan; .\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port $puerto"
+    if (-not $tarea) {
+        # Primera vez: crear la tarea oculta (no abre ninguna ventana).
+        Write-Host "  Creando el arranque automatico (tarea AsistenciaK20)..." -ForegroundColor DarkGray
+        $accion = New-ScheduledTaskAction `
+            -Execute "powershell.exe" `
+            -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$rootDir\servicio_k20.ps1`"" `
+            -WorkingDirectory $rootDir
+        $disparador = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+        $ajustes = New-ScheduledTaskSettingsSet `
+            -StartWhenAvailable `
+            -RestartCount 5 `
+            -RestartInterval (New-TimeSpan -Minutes 1) `
+            -ExecutionTimeLimit ([TimeSpan]::Zero) `
+            -AllowStartIfOnBatteries `
+            -DontStopIfGoingOnBatteries
+        Register-ScheduledTask `
+            -TaskName "AsistenciaK20" `
+            -Action $accion `
+            -Trigger $disparador `
+            -Settings $ajustes `
+            -Description "Asistencia K20: web y API en http://127.0.0.1:$puerto" `
+            -Force | Out-Null
     }
+    Write-Host "  Iniciando mediante el arranque automatico (tarea AsistenciaK20, sin ventanas)..." -ForegroundColor DarkGray
+    Start-ScheduledTask -TaskName "AsistenciaK20"
     $listo = $false
     for ($i = 0; $i -lt 30; $i++) {
         Start-Sleep -Seconds 2

@@ -14,7 +14,9 @@ MYSQL_DB="${MYSQL_DB:-asistencia_k20}"
 
 echo "[entrypoint] Configuracion: host=${MYSQL_HOST} port=${MYSQL_PORT} db=${MYSQL_DB} port_app=${APP_PORT}"
 
-# 1. Esperar a que MySQL acepte conexiones TCP
+# 1. Esperar a que MySQL acepte conexiones TCP.
+#    Si no aparece, NO se aborta: el servicio arranca igual y la web muestra el
+#    error de conexion con su boton "Reintentar" (mejor que una pagina caida).
 echo "[entrypoint] Esperando a MySQL en ${MYSQL_HOST}:${MYSQL_PORT} ..."
 intentos=0
 until python -c "
@@ -29,13 +31,16 @@ except Exception:
     sys.exit(1)
 " 2>/dev/null; do
     intentos=$((intentos + 1))
-    if [ "$intentos" -ge 60 ]; then
-        echo "[entrypoint] ERROR: MySQL no respondio tras 60 intentos. Abortando."
-        exit 1
+    if [ "$intentos" -ge 30 ]; then
+        echo "[entrypoint] ADVERTENCIA: MySQL no respondio tras 60 s."
+        echo "[entrypoint] Se arranca igualmente; revise MYSQL_SERVER/MYSQL_PORT/MYSQL_PASSWORD."
+        break
     fi
     sleep 2
 done
-echo "[entrypoint] MySQL disponible."
+if [ "$intentos" -lt 30 ]; then
+    echo "[entrypoint] MySQL disponible."
+fi
 
 # 2. Crear la base de datos si no existe (conectando a 'mysql' o sin BD)
 echo "[entrypoint] Verificando/creando base de datos '${MYSQL_DB}' ..."
