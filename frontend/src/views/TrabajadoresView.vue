@@ -25,6 +25,73 @@
       </div>
     </div>
 
+    <!-- Consulta de DNI en RENIEC -->
+    <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+      <div class="flex flex-col lg:flex-row lg:items-end gap-4">
+        <div class="flex-1">
+          <h3 class="text-sm font-bold text-slate-800">Consultar DNI (RENIEC)</h3>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Escribe un DNI de 8 dígitos y consulta el nombre registrado. Sirve para completar o corregir nombres del padrón.
+          </p>
+        </div>
+
+        <div class="flex items-end gap-2 w-full lg:w-auto">
+          <div class="flex-1 lg:w-48">
+            <label class="block text-[11px] font-medium text-slate-600 mb-1">DNI</label>
+            <input
+              v-model="dniInput"
+              @keyup.enter="buscarDni"
+              type="text"
+              inputmode="numeric"
+              maxlength="8"
+              placeholder="47092856"
+              class="w-full text-sm font-mono px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+            />
+          </div>
+          <button
+            @click="buscarDni"
+            :disabled="dniLoading || dniInput.replace(/\D/g, '').length !== 8"
+            class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+          >
+            {{ dniLoading ? 'Buscando...' : 'Buscar DNI' }}
+          </button>
+        </div>
+      </div>
+
+      <p v-if="dniError" class="mt-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+        {{ dniError }}
+      </p>
+
+      <div v-if="dniResultado" class="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p class="text-sm font-bold text-emerald-900">{{ dniResultado.nombre_completo }}</p>
+            <p class="text-[11px] text-emerald-800 mt-0.5 font-mono">
+              DNI {{ dniResultado.dni }}
+              <span v-if="dniResultado.fecha_nacimiento"> · Nac. {{ dniResultado.fecha_nacimiento }}</span>
+              <span v-if="dniResultado.sexo"> · {{ dniResultado.sexo }}</span>
+            </p>
+            <p v-if="dniTrabajador" class="text-[11px] text-emerald-700 mt-1">
+              Este DNI coincide con el trabajador <strong>#{{ dniTrabajador.user_id }}</strong>
+              ({{ dniTrabajador.nombre || 'sin nombre' }}).
+            </p>
+            <p v-else class="text-[11px] text-emerald-700 mt-1">
+              No hay un trabajador con este DNI como <code class="font-mono">user_id</code>.
+            </p>
+          </div>
+
+          <button
+            v-if="dniTrabajador"
+            @click="aplicarNombreDni"
+            :disabled="dniAplicando"
+            class="px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+          >
+            {{ dniAplicando ? 'Guardando...' : 'Actualizar nombre del trabajador' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Tabla de Trabajadores -->
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
       <div v-if="loading" class="p-16">
@@ -109,12 +176,21 @@
                 </span>
               </td>
               <td class="py-3 px-4 text-right">
-                <router-link
-                  :to="`/marcaciones?user_id=${w.user_id}`"
-                  class="inline-flex items-center px-2.5 py-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
-                >
-                  Ver Historial →
-                </router-link>
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    @click="abrirEdicion(w)"
+                    class="inline-flex items-center px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                    title="Editar nombre y departamento"
+                  >
+                    Editar
+                  </button>
+                  <router-link
+                    :to="`/marcaciones?user_id=${w.user_id}`"
+                    class="inline-flex items-center px-2.5 py-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                  >
+                    Ver Historial →
+                  </router-link>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -143,13 +219,93 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal de edición de trabajador -->
+    <Modal :isOpen="editOpen" @close="cerrarEdicion">
+      <template #title>
+        Editar trabajador #{{ editForm.user_id }}
+      </template>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1">Nombre completo</label>
+          <input
+            v-model="editForm.nombre"
+            type="text"
+            maxlength="150"
+            placeholder="Apellidos, Nombres"
+            class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1">Departamento</label>
+          <input
+            v-model="editForm.departamento"
+            type="text"
+            maxlength="100"
+            placeholder="OUR COMPANY"
+            class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+          />
+        </div>
+
+        <div class="pt-3 border-t border-slate-200">
+          <label class="block text-xs font-medium text-slate-700 mb-1">Completar nombre desde RENIEC (opcional)</label>
+          <div class="flex items-center gap-2">
+            <input
+              v-model="editDni"
+              type="text"
+              inputmode="numeric"
+              maxlength="8"
+              placeholder="DNI de 8 dígitos"
+              class="flex-1 text-sm font-mono px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+            />
+            <button
+              @click="buscarDniEnEdicion"
+              :disabled="editDniLoading || editDni.replace(/\D/g, '').length !== 8"
+              class="px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+            >
+              {{ editDniLoading ? 'Buscando...' : 'Buscar' }}
+            </button>
+          </div>
+          <p v-if="editDniError" class="text-[11px] text-rose-600 mt-1">{{ editDniError }}</p>
+          <p v-if="editDniOk" class="text-[11px] text-emerald-700 mt-1">{{ editDniOk }}</p>
+        </div>
+
+        <p v-if="editError" class="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+          {{ editError }}
+        </p>
+      </div>
+
+      <template #footer>
+        <button
+          @click="cerrarEdicion"
+          :disabled="editGuardando"
+          class="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 transition-colors cursor-pointer"
+        >
+          Cancelar
+        </button>
+        <button
+          @click="guardarEdicion"
+          :disabled="editGuardando || !editForm.nombre.trim()"
+          class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {{ editGuardando ? 'Guardando...' : 'Guardar cambios' }}
+        </button>
+      </template>
+    </Modal>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, inject } from 'vue'
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import Modal from '../components/common/Modal.vue'
 import { api } from '../services/api'
+
+const showToast = inject('showToast', (type, title, message) => {
+  console.log(`[${type}] ${title}: ${message}`)
+})
 
 const workers = ref([])
 const totalWorkers = ref(0)
@@ -160,6 +316,24 @@ const loading = ref(true)
 const error = ref('')
 const sortBy = ref('total_marcaciones')
 const sortDir = ref('desc')
+
+// --- Consulta de DNI (RENIEC) ---------------------------------------------
+const dniInput = ref('')
+const dniLoading = ref(false)
+const dniError = ref('')
+const dniResultado = ref(null)
+const dniTrabajador = ref(null)
+const dniAplicando = ref(false)
+
+// --- Edicion de trabajador ------------------------------------------------
+const editOpen = ref(false)
+const editGuardando = ref(false)
+const editError = ref('')
+const editDni = ref('')
+const editDniLoading = ref(false)
+const editDniError = ref('')
+const editDniOk = ref('')
+const editForm = ref({ user_id: '', nombre: '', departamento: '' })
 
 // Igual que en Marcaciones: solo se aplica la respuesta de la ultima consulta.
 let peticionActual = null
@@ -239,6 +413,125 @@ function formatDateTime(isoStr) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+// --- Consulta de DNI (RENIEC) ---------------------------------------------
+function soloDigitos(valor) {
+  return String(valor || '').replace(/\D/g, '').slice(0, 8)
+}
+
+async function buscarDni() {
+  const dni = soloDigitos(dniInput.value)
+  dniResultado.value = null
+  dniTrabajador.value = null
+  dniError.value = ''
+  if (dni.length !== 8) {
+    dniError.value = 'El DNI debe tener exactamente 8 dígitos.'
+    return
+  }
+  dniLoading.value = true
+  try {
+    const res = await api.consultarDni(dni)
+    dniResultado.value = res.data
+    try {
+      const encontrado = await api.getTrabajadorById(dni)
+      dniTrabajador.value = encontrado.data
+    } catch (err) {
+      if (err.response?.status !== 404) console.warn('Búsqueda de trabajador:', err)
+    }
+  } catch (err) {
+    dniError.value = err.response?.data?.detail || 'No se pudo consultar el DNI.'
+  } finally {
+    dniLoading.value = false
+  }
+}
+
+async function aplicarNombreDni() {
+  if (!dniTrabajador.value || !dniResultado.value) return
+  dniAplicando.value = true
+  try {
+    const res = await api.actualizarTrabajador(dniTrabajador.value.user_id, {
+      nombre: dniResultado.value.nombre_completo,
+    })
+    dniTrabajador.value = res.data
+    showToast(
+      'success',
+      'Nombre actualizado',
+      `El trabajador #${res.data.user_id} ahora figura como "${res.data.nombre}".`
+    )
+    fetchWorkers()
+  } catch (err) {
+    showToast('error', 'No se pudo actualizar', err.response?.data?.detail || err.message)
+  } finally {
+    dniAplicando.value = false
+  }
+}
+
+// --- Edicion de trabajador ------------------------------------------------
+function abrirEdicion(w) {
+  editForm.value = {
+    user_id: w.user_id,
+    nombre: w.nombre || '',
+    departamento: w.departamento || '',
+  }
+  editDni.value = /^\d{8}$/.test(String(w.user_id)) ? w.user_id : ''
+  editError.value = ''
+  editDniError.value = ''
+  editDniOk.value = ''
+  editOpen.value = true
+}
+
+function cerrarEdicion() {
+  if (editGuardando.value) return
+  editOpen.value = false
+}
+
+async function buscarDniEnEdicion() {
+  const dni = soloDigitos(editDni.value)
+  editDniError.value = ''
+  editDniOk.value = ''
+  if (dni.length !== 8) {
+    editDniError.value = 'El DNI debe tener exactamente 8 dígitos.'
+    return
+  }
+  editDniLoading.value = true
+  try {
+    const res = await api.consultarDni(dni)
+    editForm.value.nombre = res.data.nombre_completo
+    editDniOk.value = `Nombre encontrado: ${res.data.nombre_completo}`
+  } catch (err) {
+    editDniError.value = err.response?.data?.detail || 'No se pudo consultar el DNI.'
+  } finally {
+    editDniLoading.value = false
+  }
+}
+
+async function guardarEdicion() {
+  const nombre = editForm.value.nombre.trim()
+  if (!nombre) {
+    editError.value = 'El nombre no puede estar vacío.'
+    return
+  }
+  editGuardando.value = true
+  editError.value = ''
+  try {
+    const res = await api.actualizarTrabajador(editForm.value.user_id, {
+      nombre,
+      departamento: editForm.value.departamento,
+    })
+    const idx = workers.value.findIndex((w) => w.user_id === res.data.user_id)
+    if (idx !== -1) workers.value[idx] = res.data
+    showToast(
+      'success',
+      'Trabajador actualizado',
+      `#${res.data.user_id} ahora figura como "${res.data.nombre}".`
+    )
+    editOpen.value = false
+  } catch (err) {
+    editError.value = err.response?.data?.detail || 'No se pudo guardar el cambio.'
+  } finally {
+    editGuardando.value = false
+  }
 }
 
 onMounted(() => {

@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     ZK_TIMEOUT_SEGUNDOS: int = 10
     ZK_REINTENTOS: int = 2
     SYNC_EJECUCION_COLGADA_MINUTOS: int = 30
+
+    # Consulta de DNI (RENIEC) via AQPFACT
+    AQPFACT_API_URL: str = "https://apis.aqpfact.pe/api"
+    AQPFACT_API_TOKEN: str = ""
+    AQPFACT_TIMEOUT_SEGUNDOS: int = 15
+
     ALLOWED_HOSTS: List[str] = ["127.0.0.1", "localhost"]
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",

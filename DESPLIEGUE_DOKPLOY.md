@@ -95,14 +95,19 @@ servicio Compose**, donde los puertos sí se publican.
    ADMIN_PASSWORD=<clave temporal>
    SECRET_KEY=<cadena larga y aleatoria>
    API_ACCESS_TOKEN=<cadena larga y aleatoria>
+   AQPFACT_API_URL=https://apis.aqpfact.pe/api
+   AQPFACT_API_TOKEN=<token de AQPFACT>
    APP_PORT=5173
-   DB_PORT=3307
    ```
 
-4. **Deploy**. Esto levanta MySQL + la app, publica `5173` (web) y `3307`
-   (base) y deja el login con `ADMIN_USER` / `ADMIN_PASSWORD`.
+4. **Deploy**. Esto levanta MySQL + la app y publica solo `5173` (web).
+   El login queda con `ADMIN_USER` / `ADMIN_PASSWORD`.
 
-5. Importar el respaldo (una sola vez), desde cualquier PC de la red:
+   MySQL **no** está publicado: la app lo usa por la red interna de Docker.
+
+5. Importar el respaldo (una sola vez). Como el 3307 está cerrado, hazlo
+   descomentando temporalmente el bloque `ports` del servicio `db` en
+   `docker-compose.yml` y volviendo a desplegar:
 
    ```powershell
    & "C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe" `
@@ -114,8 +119,9 @@ servicio Compose**, donde los puertos sí se publican.
    Tarda ~16 s y deja las 48.623 marcaciones, 289 trabajadores y la tabla
    `alembic_version` en `fase2_sync_biometrico`.
 
-6. **Cerrar el 3307**: borra `DB_PORT` de las variables y pulsa **Redeploy**.
-   Los datos quedan en el volumen `k20_mysql` y MySQL deja de estar expuesto.
+6. **Cerrar el 3307**: vuelve a comentar el bloque `ports` del servicio `db`
+   y pulsa **Redeploy**. Los datos quedan en el volumen `k20_mysql` y MySQL
+   deja de estar expuesto.
 
 > Importante: el servicio de base de datos creado aparte (Database → MySQL) **no
 > sirve para exponer el 3307**; úsalo solo si la app corre como Application y se
@@ -158,7 +164,14 @@ ZK_DEVICE_PORT=4370
 ZK_DEVICE_PLATFORM=ZLM60_TFT
 ZK_DEVICE_NAME=ZKTeco K20
 SYNC_AUTOMATICA_ENABLED=False
+AQPFACT_API_URL=https://apis.aqpfact.pe/api
+AQPFACT_API_TOKEN=<token de AQPFACT>
 ```
+
+- `AQPFACT_API_TOKEN` habilita la consulta de DNI (RENIEC) y el botón
+  **Buscar DNI** del padrón. Vive **solo en el servidor**: el navegador llama a
+  `GET /api/v1/consulta/dni/{dni}` y el backend agrega el token. Si la variable
+  queda vacía, la consulta responde `503` y el resto del sistema sigue normal.
 
 - `MYSQL_SERVER`: si usas el MySQL del `docker-compose.yml`, es `db`.
   Si usas un MySQL externo, pon su host/IP (nunca `127.0.0.1` dentro del

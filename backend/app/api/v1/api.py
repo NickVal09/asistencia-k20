@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     importacion,
     dispositivos,
     sincronizacion,
+    consulta,
 )
 from app.core.security import verify_authorization
 
@@ -44,5 +45,11 @@ api_router.include_router(
     sincronizacion.router,
     prefix="/sincronizacion",
     tags=["Sincronización K20"],
+    dependencies=_protegido,
+)
+api_router.include_router(
+    consulta.router,
+    prefix="/consulta",
+    tags=["Consulta DNI (RENIEC)"],
     dependencies=_protegido,
 )

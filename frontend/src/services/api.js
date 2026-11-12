@@ -155,7 +155,15 @@ export const api = {
     return apiClient.get('/trabajadores', { params, ...config })
   },
   getTrabajadorById(userId) {
-    return apiClient.get(`/trabajadores/${userId}`)
+    return apiClient.get(`/trabajadores/${encodeURIComponent(userId)}`)
+  },
+  actualizarTrabajador(userId, datos) {
+    return apiClient.patch(`/trabajadores/${encodeURIComponent(userId)}`, datos)
+  },
+
+  // Consulta de DNI (RENIEC) a traves del backend: el token nunca llega al navegador.
+  consultarDni(dni) {
+    return apiClient.get(`/consulta/dni/${encodeURIComponent(dni)}`, { timeout: 30000 })
   },
 
   // Importacion
