@@ -93,25 +93,28 @@ def root():
 
 @app.get("/health", tags=["General"])
 def health_check():
-    """Diagnostico rapido: util para verificar el despliegue en Dokploy.
+    """Diagnostico rapido (lo usa el HEALTHCHECK del contenedor).
 
-    - status: el proceso esta vivo.
-    - frontend: la web compilada (frontend/dist/index.html) esta presente.
-    - database: la base de datos responde (comprobacion breve, con timeout).
+    Debe ser inmediato y no depender de MySQL: si la base de datos esta lenta
+    o caida, el contenedor no debe marcarse como "unhealthy" (Dokploy dejaria
+    de enviarle trafico). Para comprobar MySQL existe /health/db.
     """
-    db_ok = True
-    try:
-        with engine.connect() as conexion:
-            conexion.exec_driver_sql("SELECT 1")
-    except Exception:  # noqa: BLE001
-        db_ok = False
-
     return {
         "status": "ok",
         "environment": settings.ENVIRONMENT,
         "frontend": FRONTEND_INDEX.is_file(),
-        "database": db_ok,
     }
+
+
+@app.get("/health/db", tags=["General"])
+def health_db():
+    """Comprobacion explicita de la base de datos (puede tardar si esta caida)."""
+    try:
+        with engine.connect() as conexion:
+            conexion.exec_driver_sql("SELECT 1")
+        return {"database": True}
+    except Exception as exc:  # noqa: BLE001
+        return {"database": False, "error": str(exc)[:300]}
 
 
 # Rutas internas de la API que nunca deben devolver la web (SPA).

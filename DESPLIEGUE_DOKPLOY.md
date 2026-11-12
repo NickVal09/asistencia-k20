@@ -94,11 +94,19 @@ No ejecuta ningún `.bat`, `.ps1` ni necesita terminal.
 1. `https://tu-dominio.com/health`
 
    ```json
-   {"status":"ok","environment":"production","frontend":true,"database":true}
+   {"status":"ok","environment":"production","frontend":true}
    ```
 
    - `frontend: false` → falló la compilación de Vue (revisa el build log).
-   - `database: false` → credenciales/host de MySQL incorrectos.
+
+   Y para comprobar la base de datos: `https://tu-dominio.com/health/db`
+
+   ```json
+   {"database": true}
+   ```
+
+   Si devuelve `false`, revisa `MYSQL_SERVER`, `MYSQL_USER`, `MYSQL_PASSWORD`
+   y `MYSQL_DB`.
 
 2. `https://tu-dominio.com/` → debe mostrar **la pantalla de login**.
 3. `https://tu-dominio.com/api/v1/marcaciones?per_page=1` → debe responder
