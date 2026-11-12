@@ -36,6 +36,10 @@ services:
       MYSQL_DB: ${MYSQL_DB:-asistencia_k20}
       SECRET_KEY: ${SECRET_KEY:-cambiar-esta-clave-en-produccion}
       API_ACCESS_TOKEN: ${API_ACCESS_TOKEN:-k20-access-token-dev}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-k20-admin-dev}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+      SYNC_AUTOMATICA_ENABLED: "False"
       ZK_DEVICE_IP: ${ZK_DEVICE_IP:-192.168.10.69}
       ZK_DEVICE_PORT: ${ZK_DEVICE_PORT:-4370}
       ZK_DEVICE_PLATFORM: ${ZK_DEVICE_PLATFORM:-ZLM60_TFT}
