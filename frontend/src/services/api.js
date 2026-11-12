@@ -1,18 +1,85 @@
 import axios from 'axios'
 
 const TOKEN_KEY = 'k20_access_token'
+const EXPIRA_KEY = 'k20_token_expira'
+const USUARIO_KEY = 'k20_usuario'
 
-export function getToken() {
-  return localStorage.getItem(TOKEN_KEY)
+// Se activa cuando getToken() descarta un token vencido, para que el router
+// pueda avisar en el login ("Tu sesión expiró").
+let _sesionExpirada = false
+
+export function sesionExpirada() {
+  return _sesionExpirada
 }
 
-export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token)
-  else localStorage.removeItem(TOKEN_KEY)
+/**
+ * El backend firma el token como base64url(payload).firma, donde el payload
+ * incluye "exp" (segundos UNIX). Lo decodificamos para conocer el vencimiento
+ * sin depender de una peticion al servidor.
+ */
+function decodificarExpiracion(token) {
+  try {
+    const [payload] = token.split('.')
+    const normalizado = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const relleno = '='.repeat((4 - (normalizado.length % 4)) % 4)
+    const datos = JSON.parse(atob(normalizado + relleno))
+    return datos?.exp ? Number(datos.exp) * 1000 : null
+  } catch {
+    return null
+  }
+}
+
+export function setToken(token, minutos) {
+  if (!token) {
+    clearToken()
+    return
+  }
+  _sesionExpirada = false
+  localStorage.setItem(TOKEN_KEY, token)
+  const expira = decodificarExpiracion(token) ?? (minutos ? Date.now() + minutos * 60000 : null)
+  if (expira) localStorage.setItem(EXPIRA_KEY, String(expira))
+  else localStorage.removeItem(EXPIRA_KEY)
+}
+
+/**
+ * Devuelve el token solo si sigue vigente (con 30 s de margen).
+ * Si esta vencido lo elimina, de modo que el router mande al login.
+ */
+export function getToken() {
+  const token = localStorage.getItem(TOKEN_KEY)
+  if (!token) return null
+
+  const guardado = Number(localStorage.getItem(EXPIRA_KEY) || 0)
+  const expira = guardado || decodificarExpiracion(token)
+  if (expira && Date.now() >= expira - 30000) {
+    _sesionExpirada = true
+    clearToken()
+    return null
+  }
+  return token
+}
+
+export function isAuthenticated() {
+  return Boolean(getToken())
+}
+
+export function setUsuario(usuario) {
+  if (usuario) localStorage.setItem(USUARIO_KEY, usuario)
+}
+
+export function getUsuario() {
+  return localStorage.getItem(USUARIO_KEY) || ''
+}
+
+export function expiracionToken() {
+  const expira = Number(localStorage.getItem(EXPIRA_KEY) || 0)
+  return expira || null
 }
 
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(EXPIRA_KEY)
+  localStorage.removeItem(USUARIO_KEY)
 }
 
 const apiClient = axios.create({
@@ -45,9 +112,10 @@ apiClient.interceptors.response.use(
 
     // Sesion caducada: limpiar y redirigir al login (salvo la propia peticion de login).
     if (error.response?.status === 401 && !(config?.url || '').includes('/auth/login')) {
+      _sesionExpirada = true
       clearToken()
       if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        window.location.href = '/login'
+        window.location.href = '/login?expirada=1'
       }
     }
 

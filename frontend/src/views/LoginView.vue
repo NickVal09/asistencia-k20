@@ -54,7 +54,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { api, setToken } from '../services/api'
+import { api, setToken, setUsuario } from '../services/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -62,15 +62,18 @@ const route = useRoute()
 const usuario = ref('')
 const password = ref('')
 const loading = ref(false)
-const error = ref('')
+const error = ref(
+  route.query.expirada ? 'Tu sesión expiró. Inicia sesión nuevamente.' : ''
+)
 
 async function submit() {
   loading.value = true
   error.value = ''
   try {
     const res = await api.login(usuario.value, password.value)
-    setToken(res.data.access_token)
-    const redirect = route.query.redirect || '/'
+    setToken(res.data.access_token, res.data.expira_en_minutos)
+    setUsuario(res.data.usuario || usuario.value)
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
     router.push(redirect)
   } catch (err) {
     error.value = err.response?.data?.detail || 'No se pudo iniciar sesión.'
