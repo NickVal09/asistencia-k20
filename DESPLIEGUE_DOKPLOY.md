@@ -17,6 +17,54 @@ IP del servidor con el puerto publicado.
 
 ---
 
+## Acceso por IP y puerto (sin dominio)
+
+Dokploy **no publica** el puerto del contenedor por sí solo. El "Container Port"
+de la pestaña **Domains** solo sirve para que Traefik enrute un dominio; no abre
+`IP:puerto`. Por eso `http://192.168.10.62:5173` da `ERR_CONNECTION_REFUSED`
+aunque la aplicación esté corriendo.
+
+Para abrirla directamente por IP y puerto:
+
+1. Application → pestaña **Advanced** → sección **Ports** → **Add Port**.
+2. Rellena:
+
+   | Campo | Valor |
+   |-------|-------|
+   | Published Port | `5173` |
+   | Target Port | `5173` |
+   | Protocol | `TCP` |
+
+3. **Save** y luego **Redeploy** (los cambios de puertos se aplican al recrear
+   el contenedor).
+4. Abre `http://192.168.10.62:5173`.
+
+> Nota: el "Published Port" es el puerto del *host* (el 192.168.10.62). Si otro
+> servicio ya usa el 5173 en ese servidor, usa otro, por ejemplo `8080` →
+> Target `5173`, y abre `http://192.168.10.62:8080`.
+
+### Si quieres usar dominio
+
+Los dominios de Dokploy pasan por **Traefik**, que escucha en los puertos
+**80** y **443**. Si esos puertos están cerrados (firewall o Traefik detenido),
+ningún dominio funcionará. Compruébalo desde otra PC de la red:
+
+```powershell
+Test-NetConnection 192.168.10.62 -Port 80
+Test-NetConnection 192.168.10.62 -Port 443
+```
+
+Si dan `False`, revisa en el servidor:
+
+```bash
+docker ps | grep traefik
+sudo ufw status
+```
+
+Mientras tanto, usa el acceso por IP:puerto de la sección anterior.
+
+---
+
 ## Configuración del servicio en Dokploy
 
 ### Application (recomendado)
