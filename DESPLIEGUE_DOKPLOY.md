@@ -67,7 +67,62 @@ Mientras tanto, usa el acceso por IP:puerto de la sección anterior.
 
 ## Configuración del servicio en Dokploy
 
-### Application (recomendado)
+### Docker Compose (ruta recomendada y probada)
+
+Dokploy **no permite publicar puertos en los servicios de base de datos**: el
+componente de ajustes avanzados de una DB solo ofrece comando, cluster,
+volúmenes, redes, recursos y rebuild. Por eso, si necesitas exponer MySQL (por
+ejemplo para importar el respaldo con HeidiSQL), **la base debe ir dentro de un
+servicio Compose**, donde los puertos sí se publican.
+
+1. **Create Service → Compose**
+2. Rellena:
+
+   | Campo | Valor |
+   |-------|-------|
+   | Name | `asistencia-k20` |
+   | Provider | `Github` |
+   | Repository | `NickVal09/asistencia-k20` |
+   | Branch | `main` |
+   | Compose Path | `./docker-compose.yml` |
+
+3. Pestaña **Environment**:
+
+   ```env
+   MYSQL_ROOT_PASSWORD=<clave larga>
+   MYSQL_DB=asistencia_k20
+   ADMIN_USER=admin
+   ADMIN_PASSWORD=<clave temporal>
+   SECRET_KEY=<cadena larga y aleatoria>
+   API_ACCESS_TOKEN=<cadena larga y aleatoria>
+   APP_PORT=5173
+   DB_PORT=3307
+   ```
+
+4. **Deploy**. Esto levanta MySQL + la app, publica `5173` (web) y `3307`
+   (base) y deja el login con `ADMIN_USER` / `ADMIN_PASSWORD`.
+
+5. Importar el respaldo (una sola vez), desde cualquier PC de la red:
+
+   ```powershell
+   & "C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe" `
+     --host=192.168.10.62 --port=3307 --user=root --password=<clave> `
+     --default-character-set=utf8mb4 asistencia_k20 `
+     -e "source C:/ruta/backup_actual_48623.sql"
+   ```
+
+   Tarda ~16 s y deja las 48.623 marcaciones, 289 trabajadores y la tabla
+   `alembic_version` en `fase2_sync_biometrico`.
+
+6. **Cerrar el 3307**: borra `DB_PORT` de las variables y pulsa **Redeploy**.
+   Los datos quedan en el volumen `k20_mysql` y MySQL deja de estar expuesto.
+
+> Importante: el servicio de base de datos creado aparte (Database → MySQL) **no
+> sirve para exponer el 3307**; úsalo solo si la app corre como Application y se
+> conecta por la red interna de Dokploy.
+
+### Application (solo si no usas Compose)
+
 
 | Campo | Valor |
 |-------|-------|
