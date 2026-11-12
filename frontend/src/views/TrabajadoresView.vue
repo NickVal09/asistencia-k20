@@ -25,73 +25,6 @@
       </div>
     </div>
 
-    <!-- Consulta de DNI en RENIEC -->
-    <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-      <div class="flex flex-col lg:flex-row lg:items-end gap-4">
-        <div class="flex-1">
-          <h3 class="text-sm font-bold text-slate-800">Consultar DNI (RENIEC)</h3>
-          <p class="text-xs text-slate-500 mt-0.5">
-            Escribe un DNI de 8 dígitos y consulta el nombre registrado. Sirve para completar o corregir nombres del padrón.
-          </p>
-        </div>
-
-        <div class="flex items-end gap-2 w-full lg:w-auto">
-          <div class="flex-1 lg:w-48">
-            <label class="block text-[11px] font-medium text-slate-600 mb-1">DNI</label>
-            <input
-              v-model="dniInput"
-              @keyup.enter="buscarDni"
-              type="text"
-              inputmode="numeric"
-              maxlength="8"
-              placeholder="47092856"
-              class="w-full text-sm font-mono px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-            />
-          </div>
-          <button
-            @click="buscarDni"
-            :disabled="dniLoading || dniInput.replace(/\D/g, '').length !== 8"
-            class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
-          >
-            {{ dniLoading ? 'Buscando...' : 'Buscar DNI' }}
-          </button>
-        </div>
-      </div>
-
-      <p v-if="dniError" class="mt-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
-        {{ dniError }}
-      </p>
-
-      <div v-if="dniResultado" class="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <p class="text-sm font-bold text-emerald-900">{{ dniResultado.nombre_completo }}</p>
-            <p class="text-[11px] text-emerald-800 mt-0.5 font-mono">
-              DNI {{ dniResultado.dni }}
-              <span v-if="dniResultado.fecha_nacimiento"> · Nac. {{ dniResultado.fecha_nacimiento }}</span>
-              <span v-if="dniResultado.sexo"> · {{ dniResultado.sexo }}</span>
-            </p>
-            <p v-if="dniTrabajador" class="text-[11px] text-emerald-700 mt-1">
-              Este DNI coincide con el trabajador <strong>#{{ dniTrabajador.user_id }}</strong>
-              ({{ dniTrabajador.nombre || 'sin nombre' }}).
-            </p>
-            <p v-else class="text-[11px] text-emerald-700 mt-1">
-              No hay un trabajador con este DNI como <code class="font-mono">user_id</code>.
-            </p>
-          </div>
-
-          <button
-            v-if="dniTrabajador"
-            @click="aplicarNombreDni"
-            :disabled="dniAplicando"
-            class="px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
-          >
-            {{ dniAplicando ? 'Guardando...' : 'Actualizar nombre del trabajador' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- Tabla de Trabajadores -->
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
       <div v-if="loading" class="p-16">
@@ -227,6 +160,36 @@
       </template>
 
       <div class="space-y-4">
+        <!-- Buscar por DNI en RENIEC -->
+        <div class="pt-1">
+          <label class="block text-xs font-medium text-slate-700 mb-1">
+            Buscar nombre por DNI (RENIEC) — reemplaza el nombre actual
+          </label>
+          <div class="flex items-center gap-2">
+            <input
+              v-model="editDni"
+              type="text"
+              inputmode="numeric"
+              maxlength="8"
+              placeholder="DNI de 8 dígitos"
+              class="flex-1 text-sm font-mono px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+            />
+            <button
+              @click="buscarDniEnEdicion"
+              :disabled="editDniLoading || editDni.replace(/\D/g, '').length !== 8"
+              class="px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+            >
+              {{ editDniLoading ? 'Buscando...' : 'Buscar DNI' }}
+            </button>
+          </div>
+          <p v-if="editDniError" class="text-[11px] text-rose-600 mt-1">{{ editDniError }}</p>
+          <p v-if="editDniOk" class="text-[11px] text-emerald-700 mt-1">{{ editDniOk }}</p>
+          <p v-if="editDniOriginal" class="text-[11px] text-slate-500 mt-1">
+            Nombre anterior: <span class="font-medium text-slate-600">{{ editDniOriginal }}</span>
+            · se reemplazará al guardar.
+          </p>
+        </div>
+
         <div>
           <label class="block text-xs font-medium text-slate-700 mb-1">Nombre completo</label>
           <input
@@ -247,29 +210,6 @@
             placeholder="OUR COMPANY"
             class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
           />
-        </div>
-
-        <div class="pt-3 border-t border-slate-200">
-          <label class="block text-xs font-medium text-slate-700 mb-1">Completar nombre desde RENIEC (opcional)</label>
-          <div class="flex items-center gap-2">
-            <input
-              v-model="editDni"
-              type="text"
-              inputmode="numeric"
-              maxlength="8"
-              placeholder="DNI de 8 dígitos"
-              class="flex-1 text-sm font-mono px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-            />
-            <button
-              @click="buscarDniEnEdicion"
-              :disabled="editDniLoading || editDni.replace(/\D/g, '').length !== 8"
-              class="px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
-            >
-              {{ editDniLoading ? 'Buscando...' : 'Buscar' }}
-            </button>
-          </div>
-          <p v-if="editDniError" class="text-[11px] text-rose-600 mt-1">{{ editDniError }}</p>
-          <p v-if="editDniOk" class="text-[11px] text-emerald-700 mt-1">{{ editDniOk }}</p>
         </div>
 
         <p v-if="editError" class="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
@@ -314,16 +254,9 @@ const currentPage = ref(1)
 const searchTerm = ref('')
 const loading = ref(true)
 const error = ref('')
+
 const sortBy = ref('total_marcaciones')
 const sortDir = ref('desc')
-
-// --- Consulta de DNI (RENIEC) ---------------------------------------------
-const dniInput = ref('')
-const dniLoading = ref(false)
-const dniError = ref('')
-const dniResultado = ref(null)
-const dniTrabajador = ref(null)
-const dniAplicando = ref(false)
 
 // --- Edicion de trabajador ------------------------------------------------
 const editOpen = ref(false)
@@ -333,6 +266,7 @@ const editDni = ref('')
 const editDniLoading = ref(false)
 const editDniError = ref('')
 const editDniOk = ref('')
+const editDniOriginal = ref('')
 const editForm = ref({ user_id: '', nombre: '', departamento: '' })
 
 // Igual que en Marcaciones: solo se aplica la respuesta de la ultima consulta.
@@ -415,59 +349,11 @@ function formatDateTime(isoStr) {
   })
 }
 
-// --- Consulta de DNI (RENIEC) ---------------------------------------------
+// --- Edicion de trabajador ------------------------------------------------
 function soloDigitos(valor) {
   return String(valor || '').replace(/\D/g, '').slice(0, 8)
 }
 
-async function buscarDni() {
-  const dni = soloDigitos(dniInput.value)
-  dniResultado.value = null
-  dniTrabajador.value = null
-  dniError.value = ''
-  if (dni.length !== 8) {
-    dniError.value = 'El DNI debe tener exactamente 8 dígitos.'
-    return
-  }
-  dniLoading.value = true
-  try {
-    const res = await api.consultarDni(dni)
-    dniResultado.value = res.data
-    try {
-      const encontrado = await api.getTrabajadorById(dni)
-      dniTrabajador.value = encontrado.data
-    } catch (err) {
-      if (err.response?.status !== 404) console.warn('Búsqueda de trabajador:', err)
-    }
-  } catch (err) {
-    dniError.value = err.response?.data?.detail || 'No se pudo consultar el DNI.'
-  } finally {
-    dniLoading.value = false
-  }
-}
-
-async function aplicarNombreDni() {
-  if (!dniTrabajador.value || !dniResultado.value) return
-  dniAplicando.value = true
-  try {
-    const res = await api.actualizarTrabajador(dniTrabajador.value.user_id, {
-      nombre: dniResultado.value.nombre_completo,
-    })
-    dniTrabajador.value = res.data
-    showToast(
-      'success',
-      'Nombre actualizado',
-      `El trabajador #${res.data.user_id} ahora figura como "${res.data.nombre}".`
-    )
-    fetchWorkers()
-  } catch (err) {
-    showToast('error', 'No se pudo actualizar', err.response?.data?.detail || err.message)
-  } finally {
-    dniAplicando.value = false
-  }
-}
-
-// --- Edicion de trabajador ------------------------------------------------
 function abrirEdicion(w) {
   editForm.value = {
     user_id: w.user_id,
@@ -478,6 +364,7 @@ function abrirEdicion(w) {
   editError.value = ''
   editDniError.value = ''
   editDniOk.value = ''
+  editDniOriginal.value = w.nombre || ''
   editOpen.value = true
 }
 
@@ -497,8 +384,9 @@ async function buscarDniEnEdicion() {
   editDniLoading.value = true
   try {
     const res = await api.consultarDni(dni)
+    // Reemplaza el nombre antiguo por el encontrado en RENIEC.
     editForm.value.nombre = res.data.nombre_completo
-    editDniOk.value = `Nombre encontrado: ${res.data.nombre_completo}`
+    editDniOk.value = `Nombre encontrado y reemplazado: ${res.data.nombre_completo}`
   } catch (err) {
     editDniError.value = err.response?.data?.detail || 'No se pudo consultar el DNI.'
   } finally {
@@ -538,4 +426,3 @@ onMounted(() => {
   fetchWorkers()
 })
 </script>
-
