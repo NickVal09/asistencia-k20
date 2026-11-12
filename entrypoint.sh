@@ -12,6 +12,40 @@ MYSQL_USER="${MYSQL_USER:-root}"
 MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
 MYSQL_DB="${MYSQL_DB:-asistencia_k20}"
 
+# --- Normalizar valores pegados en Dokploy --------------------------------
+# Quita espacios/comillas, esquemas (mysql://), credenciales y, si pegaron
+# "host:puerto" en MYSQL_SERVER, separa el puerto.
+limpiar() {
+    printf '%s' "$1" | tr -d '[:space:]' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//"
+}
+
+MYSQL_HOST=$(limpiar "$MYSQL_HOST")
+MYSQL_HOST="${MYSQL_HOST#mysql+pymysql://}"
+MYSQL_HOST="${MYSQL_HOST#mysql://}"
+MYSQL_HOST="${MYSQL_HOST#http://}"
+MYSQL_HOST="${MYSQL_HOST#https://}"
+MYSQL_HOST="${MYSQL_HOST##*@}"
+MYSQL_HOST="${MYSQL_HOST%%/*}"
+
+if [ "$(printf '%s' "$MYSQL_HOST" | tr -cd ':' | wc -c | tr -d ' ')" = "1" ]; then
+    posible_puerto="${MYSQL_HOST##*:}"
+    case "$posible_puerto" in
+        ''|*[!0-9]*) ;;
+        *)
+            MYSQL_PORT="$posible_puerto"
+            MYSQL_HOST="${MYSQL_HOST%:*}"
+            ;;
+    esac
+fi
+
+MYSQL_PORT=$(printf '%s' "$MYSQL_PORT" | tr -cd '0-9')
+[ -z "$MYSQL_PORT" ] && MYSQL_PORT=3306
+[ -z "$MYSQL_HOST" ] && MYSQL_HOST=127.0.0.1
+MYSQL_DB=$(limpiar "$MYSQL_DB")
+[ -z "$MYSQL_DB" ] && MYSQL_DB=asistencia_k20
+
+export MYSQL_SERVER="$MYSQL_HOST" MYSQL_PORT MYSQL_USER MYSQL_PASSWORD MYSQL_DB
+
 echo "[entrypoint] Configuracion: host=${MYSQL_HOST} port=${MYSQL_PORT} db=${MYSQL_DB} port_app=${APP_PORT}"
 
 # 1. Esperar a que MySQL acepte conexiones TCP (maximo ~30 s).
@@ -20,11 +54,11 @@ echo "[entrypoint] Configuracion: host=${MYSQL_HOST} port=${MYSQL_PORT} db=${MYS
 echo "[entrypoint] Esperando a MySQL en ${MYSQL_HOST}:${MYSQL_PORT} ..."
 intentos=0
 until python -c "
-import socket, sys
+import os, socket, sys
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.settimeout(1)
 try:
-    s.connect(('${MYSQL_HOST}', ${MYSQL_PORT}))
+    s.connect((os.environ['MYSQL_SERVER'], int(os.environ['MYSQL_PORT'])))
     s.close()
     sys.exit(0)
 except Exception:

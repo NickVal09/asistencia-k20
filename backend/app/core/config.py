@@ -1,6 +1,7 @@
 import json
+import re
 from typing import List, Union
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import AnyHttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -68,13 +69,70 @@ class Settings(BaseSettings):
             return json.loads(v)
         return v
 
+    # --- Limpieza tolerante de las variables de MySQL -----------------------
+    # En Dokploy es habitual pegar el host con esquema, credenciales, ruta o
+    # incluso con el puerto pegado ("192.168.10.62:3307"). Eso rompia la URL de
+    # SQLAlchemy y el contenedor moria al importar. Aqui lo normalizamos.
+
+    @field_validator("MYSQL_SERVER", mode="before")
+    @classmethod
+    def limpiar_mysql_server(cls, v: Union[str, None]) -> str:
+        if v is None:
+            return "127.0.0.1"
+        valor = str(v).strip().strip('"').strip("'")
+        if not valor:
+            return "127.0.0.1"
+        for prefijo in ("mysql+pymysql://", "mysql://", "http://", "https://"):
+            if valor.lower().startswith(prefijo):
+                valor = valor[len(prefijo):]
+        if "@" in valor:                      # usuario:clave@host
+            valor = valor.rsplit("@", 1)[1]
+        valor = valor.split("/")[0]           # quitar /nombre_bd
+        return valor.strip() or "127.0.0.1"
+
+    @field_validator("MYSQL_PORT", mode="before")
+    @classmethod
+    def limpiar_mysql_port(cls, v: Union[str, int, None]) -> int:
+        if v is None or v == "":
+            return 3306
+        texto = str(v).strip()
+        digitos = re.sub(r"[^0-9]", "", texto)
+        if digitos:
+            return int(digitos)
+        return 3306
+
+    @field_validator("MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DB", mode="before")
+    @classmethod
+    def limpiar_texto_mysql(cls, v: Union[str, None]) -> str:
+        if v is None:
+            return ""
+        return str(v).strip().strip('"').strip("'")
+
+    @model_validator(mode="after")
+    def separar_host_y_puerto(self):
+        """Si pegaron 'host:puerto' en MYSQL_SERVER, separa el puerto."""
+        servidor = self.MYSQL_SERVER or ""
+        if servidor.count(":") == 1:
+            host, _, posible_puerto = servidor.rpartition(":")
+            if posible_puerto.isdigit() and host:
+                object.__setattr__(self, "MYSQL_SERVER", host)
+                object.__setattr__(self, "MYSQL_PORT", int(posible_puerto))
+        return self
+
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
-        password_str = f":{self.MYSQL_PASSWORD}" if self.MYSQL_PASSWORD else ""
-        return (
-            f"mysql+pymysql://{self.MYSQL_USER}{password_str}@"
-            f"{self.MYSQL_SERVER}:{self.MYSQL_PORT}/{self.MYSQL_DB}?charset=utf8mb4"
-        )
+        from sqlalchemy.engine import URL
+
+        # URL.create escapa automaticamente claves con @ : / % # etc.
+        return URL.create(
+            drivername="mysql+pymysql",
+            username=self.MYSQL_USER or None,
+            password=self.MYSQL_PASSWORD or None,
+            host=self.MYSQL_SERVER or None,
+            port=self.MYSQL_PORT or 3306,
+            database=self.MYSQL_DB or None,
+            query={"charset": "utf8mb4"},
+        ).render_as_string(hide_password=False)
 
     model_config = SettingsConfigDict(
         env_file=".env",
