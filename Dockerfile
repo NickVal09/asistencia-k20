@@ -30,7 +30,7 @@ WORKDIR /app/backend
 # "Container Port = 5173" (o el que ponga en APP_PORT/PORT).
 EXPOSE 5173
 
-HEALTHCHECK --interval=30s --timeout=8s --start-period=120s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=8s --start-period=180s --retries=3 \
     CMD ["python", "/healthcheck.py"]
 
 # El contenedor arranca solo: espera MySQL, crea la BD si falta, migra y sirve

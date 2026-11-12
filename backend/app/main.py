@@ -32,13 +32,13 @@ async def lifespan(app: FastAPI):
     # Si MySQL aún no está listo (por ejemplo al iniciar Windows), se reintenta
     # sin impedir que el servidor web arranque: la interfaz mostrará el error
     # con su botón "Reintentar" en lugar de quedarse cargando.
-    for intento in range(1, 6):
+    for intento in range(1, 4):
         try:
             Base.metadata.create_all(bind=engine)
             break
         except Exception as exc:  # noqa: BLE001
-            print(f"[startup] MySQL no disponible (intento {intento}/5): {exc}")
-            time.sleep(2)
+            print(f"[startup] MySQL no disponible (intento {intento}/3): {exc}")
+            time.sleep(1)
     yield
 
 

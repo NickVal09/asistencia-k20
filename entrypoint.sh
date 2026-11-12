@@ -14,7 +14,7 @@ MYSQL_DB="${MYSQL_DB:-asistencia_k20}"
 
 echo "[entrypoint] Configuracion: host=${MYSQL_HOST} port=${MYSQL_PORT} db=${MYSQL_DB} port_app=${APP_PORT}"
 
-# 1. Esperar a que MySQL acepte conexiones TCP.
+# 1. Esperar a que MySQL acepte conexiones TCP (maximo ~30 s).
 #    Si no aparece, NO se aborta: el servicio arranca igual y la web muestra el
 #    error de conexion con su boton "Reintentar" (mejor que una pagina caida).
 echo "[entrypoint] Esperando a MySQL en ${MYSQL_HOST}:${MYSQL_PORT} ..."
@@ -22,7 +22,7 @@ intentos=0
 until python -c "
 import socket, sys
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.settimeout(3)
+s.settimeout(1)
 try:
     s.connect(('${MYSQL_HOST}', ${MYSQL_PORT}))
     s.close()
@@ -31,14 +31,14 @@ except Exception:
     sys.exit(1)
 " 2>/dev/null; do
     intentos=$((intentos + 1))
-    if [ "$intentos" -ge 30 ]; then
-        echo "[entrypoint] ADVERTENCIA: MySQL no respondio tras 60 s."
+    if [ "$intentos" -ge 15 ]; then
+        echo "[entrypoint] ADVERTENCIA: MySQL no respondio tras ~30 s."
         echo "[entrypoint] Se arranca igualmente; revise MYSQL_SERVER/MYSQL_PORT/MYSQL_PASSWORD."
         break
     fi
-    sleep 2
+    sleep 1
 done
-if [ "$intentos" -lt 30 ]; then
+if [ "$intentos" -lt 15 ]; then
     echo "[entrypoint] MySQL disponible."
 fi
 
