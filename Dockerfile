@@ -20,10 +20,15 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 
 COPY backend/ ./backend/
 COPY --from=frontend /app/frontend/dist ./frontend/dist
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 WORKDIR /app/backend
 
 EXPOSE 5173
 
-# Sin scripts de inicio/apagado: el contenedor arranca el servicio y se reinicia solo.
-CMD ["sh", "-c", "python -m alembic upgrade head || true; exec python -m uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT:-5173}"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5173/health').read()" || exit 1
+
+# El contenedor arranca solo: espera MySQL, migra y sirve la web + API.
+ENTRYPOINT ["/entrypoint.sh"]

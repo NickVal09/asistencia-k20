@@ -242,17 +242,97 @@ Los cambios del frontend requieren `npm run build` para reflejarse en el puerto 
 
 ## ☁️ Despliegue en Dokploy (sin scripts de inicio/apagado)
 
-El proyecto incluye `Dockerfile` y `docker-compose.yml`. En el servidor no se ejecuta `iniciar_sistema.ps1` ni `detener_sistema.ps1`: el contenedor arranca solo y se reinicia automáticamente (`restart: unless-stopped`).
+El proyecto incluye `Dockerfile` y `docker-compose.yml`. En el servidor **no se ejecuta**
+`iniciar_sistema.ps1` ni `detener_sistema.ps1`: el contenedor arranca solo (espera a
+MySQL, aplica migraciones con Alembic y sirve la web + API) y se reinicia
+automáticamente (`restart: unless-stopped`).
+
+### Opción A — Application (Dockerfile) + base de datos externa
 
 1. Sube el proyecto a un repositorio Git (GitHub/GitLab).
-2. En Dokploy crea una **Application** con *Build Type = Dockerfile* (o un **Compose** apuntando a `docker-compose.yml`).
-3. Expón el puerto **5173** (es el mismo de la web y la API) y configura el dominio.
-4. Define las variables de entorno: `MYSQL_SERVER`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB`, `SECRET_KEY`, `API_ACCESS_TOKEN`, `ZK_DEVICE_IP`, `ZK_DEVICE_PORT`.
-5. Deploy. Dokploy construye la web, la sirve junto a la API y la mantiene activa.
+2. En Dokploy: **Proyecto → Crear servicio → Application**.
+3. **Build Type**: `Dockerfile`. Dokploy detecta el `Dockerfile` en la raíz.
+4. **Puerto**: `5173` (es el mismo de la web y la API).
+5. **Dominio**: asigna tu dominio (ej. `asistencia.tu-dominio.com`).
+6. **Variables de entorno** (en la pestaña Environment de Dokploy):
 
-Con `docker-compose.yml` se incluye además un MySQL 8 con volumen persistente, así que un solo `docker compose up -d --build` deja todo funcionando. Para usar una base externa, elimina el servicio `db` y apunta `MYSQL_SERVER` a tu servidor.
+   ```env
+   ENVIRONMENT=production
+   MYSQL_SERVER=<host-de-tu-mysql>
+   MYSQL_PORT=3306
+   MYSQL_USER=root
+   MYSQL_PASSWORD=<tu-password>
+   MYSQL_DB=asistencia_k20
+   SECRET_KEY=<clave-larga-y-aleatoria>
+   API_ACCESS_TOKEN=<token-largo-y-aleatorio>
+   ADMIN_USER=admin
+   ADMIN_PASSWORD=
+   ADMIN_PASSWORD_HASH=<hash-generado-con-scripts/generar_password_hash.py>
+   ZK_DEVICE_IP=192.168.10.69
+   ZK_DEVICE_PORT=4370
+   ZK_DEVICE_PLATFORM=ZLM60_TFT
+   ZK_DEVICE_NAME=ZKTeco K20
+   SYNC_AUTOMATICA_ENABLED=False
+   ```
 
-> `datos/` y `backend/.env` están excluidos de la imagen (contienen información personal y credenciales). El padrón ya importado vive en la base de datos; si necesitas reimportarlo en el servidor, monta el archivo como volumen y usa el endpoint de importación.
+   > ⚠️ **Importante**: el servidor donde corre Dokploy debe tener acceso de red
+   > a `192.168.10.69:4370`. Si Dokploy corre en un VPS en la nube, **no**
+   > podrá alcanzar el biométrico. Despliega en un servidor dentro de la misma
+   > red local (por ejemplo, la VM de Proxmox mencionada) o configura un túnel VPN.
+
+7. **Deploy**. Dokploy clona, construye la imagen (compila Vue + instala Python)
+   y levanta el contenedor. Al iniciar, el `entrypoint.sh` espera a MySQL, aplica
+   `alembic upgrade head` y arranca uvicorn. No necesitas terminal.
+
+### Opción B — Docker Compose (incluye MySQL)
+
+1. Sube el proyecto a Git.
+2. En Dokploy: **Proyecto → Crear servicio → Compose**.
+3. Selecciona el repositorio y el archivo `docker-compose.yml`.
+4. Dokploy levanta `db` (MySQL 8 con volumen persistente) + `app` (web + API).
+5. Configura las variables de entorno en Dokploy (las mismas que arriba, sin
+   `MYSQL_SERVER` porque el compose ya apunta a `db`).
+6. El puerto expuesto es `5173`. Asigna tu dominio.
+
+Para activar la sincronización automática en el servidor, agrega el servicio
+`sync` con el perfil:
+
+```bash
+docker compose --profile sync up -d
+```
+
+O en Dokploy, crea un segundo servicio Compose con el mismo archivo y el
+comando `python scripts/sync_auto.py --now`.
+
+### Base de datos inicial
+
+La primera vez que arranca, Alembic crea las tablas automáticamente. Los datos
+históricos (48 601 marcaciones) deben importarse una sola vez:
+
+- Opción 1: restaurar el backup SQL en el MySQL del servidor:
+  ```bash
+  mysql -u root -p asistencia_k20 < backup_asistencia_k20_pre_fase2.sql
+  ```
+- Opción 2: usar el endpoint `/api/v1/importar/csv` tras montar el archivo
+  CSV como volumen en el contenedor.
+
+### Verificación post-despliegue
+
+- `https://tu-dominio.com/health` → `{"status":"ok"}`
+- `https://tu-dominio.com/api/v1/docs` → Swagger
+- Pantalla de login → usuario `admin` + contraseña configurada.
+- Dispositivo → **"Probar conexión"** debe mostrar **"Conexión comprobada"**
+  (solo si el servidor tiene acceso a la red del K20).
+
+### Avisos honestos
+
+- **No pude probar la imagen Docker** porque Docker no está instalado en esta
+  máquina; los archivos siguen el estándar multi-stage (compila Vue y sirve el
+  `dist` desde FastAPI) y el `entrypoint.sh` está probado en sintaxis `sh`.
+- `datos/` (marcaciones y padrón) y `backend/.env` quedaron excluidos de Git y
+  de la imagen por privacidad; los datos viven en MySQL.
+- El biométrico K20 sigue siendo gestionado por ZLM60_TFT; este sistema solo
+  lee.
 
 ---
 
