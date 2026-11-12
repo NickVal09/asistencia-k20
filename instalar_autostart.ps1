@@ -23,6 +23,7 @@ $accion = New-ScheduledTaskAction `
 $disparador = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
 
 $ajustes = New-ScheduledTaskSettingsSet `
+    -Hidden `
     -StartWhenAvailable `
     -RestartCount 5 `
     -RestartInterval (New-TimeSpan -Minutes 1) `
