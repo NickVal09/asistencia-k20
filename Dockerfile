@@ -21,17 +21,17 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend/ ./backend/
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 COPY entrypoint.sh /entrypoint.sh
-COPY healthcheck.py /healthcheck.py
 RUN chmod +x /entrypoint.sh
 
 WORKDIR /app/backend
 
 # Puerto interno real de la aplicacion. En Dokploy configure el dominio con
-# "Container Port = 5173" (o el que ponga en APP_PORT/PORT).
+# "Container Port = 5173" o publique el puerto en Advanced -> Ports.
 EXPOSE 5173
 
-HEALTHCHECK --interval=30s --timeout=8s --start-period=180s --retries=3 \
-    CMD ["python", "/healthcheck.py"]
+# Sin HEALTHCHECK a proposito: el servicio puede arrancar aunque MySQL no este
+# disponible y un healthcheck fallido haria que Docker/Swarm lo reinicie en
+# bucle. La comprobacion esta en /health (manual) y /health/db.
 
 # El contenedor arranca solo: espera MySQL, crea la BD si falta, migra y sirve
 # la web + API. No depende de scripts .bat ni de terminales.
