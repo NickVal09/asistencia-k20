@@ -1,0 +1,72 @@
+# Sistema de Control de Asistencia K20
+# Un solo contenedor sirve la web y la API (puerto 5173) + MySQL.
+#
+# Uso local:      docker compose up -d --build
+# En Dokploy:     crear un servicio "Docker Compose" apuntando a este archivo,
+#                 o un "Application" con Build Type = Dockerfile.
+# No se necesitan iniciar_sistema.ps1 ni detener_sistema.ps1.
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-k20root}
+      MYSQL_DATABASE: ${MYSQL_DB:-asistencia_k20}
+    volumes:
+      - k20_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_ROOT_PASSWORD:-k20root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      MYSQL_SERVER: db
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-k20root}
+      MYSQL_DB: ${MYSQL_DB:-asistencia_k20}
+      SECRET_KEY: ${SECRET_KEY:-cambiar-esta-clave-en-produccion}
+      API_ACCESS_TOKEN: ${API_ACCESS_TOKEN:-k20-access-token-dev}
+      ZK_DEVICE_IP: ${ZK_DEVICE_IP:-192.168.10.69}
+      ZK_DEVICE_PORT: ${ZK_DEVICE_PORT:-4370}
+      ZK_DEVICE_PLATFORM: ${ZK_DEVICE_PLATFORM:-ZLM60_TFT}
+      ZK_DEVICE_NAME: ${ZK_DEVICE_NAME:-ZKTeco K20}
+      APP_PORT: 5173
+    ports:
+      - "${APP_PORT:-5173}:5173"
+
+  sync:
+    build: .
+    restart: unless-stopped
+    profiles: ["sync"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      MYSQL_SERVER: db
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-k20root}
+      MYSQL_DB: ${MYSQL_DB:-asistencia_k20}
+      SECRET_KEY: ${SECRET_KEY:-cambiar-esta-clave-en-produccion}
+      API_ACCESS_TOKEN: ${API_ACCESS_TOKEN:-k20-access-token-dev}
+      SYNC_AUTOMATICA_ENABLED: "True"
+      SYNC_INTERVALO_MINUTOS: ${SYNC_INTERVALO_MINUTOS:-10}
+      ZK_DEVICE_IP: ${ZK_DEVICE_IP:-192.168.10.69}
+      ZK_DEVICE_PORT: ${ZK_DEVICE_PORT:-4370}
+      ZK_DEVICE_PLATFORM: ${ZK_DEVICE_PLATFORM:-ZLM60_TFT}
+      ZK_DEVICE_NAME: ${ZK_DEVICE_NAME:-ZKTeco K20}
+    command: ["python", "scripts/sync_auto.py", "--now"]
+
+volumes:
+  k20_mysql:
